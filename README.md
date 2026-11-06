@@ -15,11 +15,13 @@ Requires the .NET 10 SDK and Python 3.10+. No external NuGet packages or cloud c
 dotnet run --project tests/Verify -c Release
 dotnet publish src/Api -c Release -o artifacts/api --no-self-contained
 python scripts/http_check.py --dll artifacts/api/Api.dll
+pwsh -File tests/TrafficChecks.ps1
 ```
 
 The HTTP harness starts disposable loopback processes. It checks healthy and
 unready configurations, actual cooperative timeouts, recovery and JSON logs.
-It never sends data to Azure. The `LAB_DEPENDENCY_TOKEN` used by the harness is
+The PowerShell checks mock the CLI to verify traffic-change guards; they are not
+a cloud rollback. Neither harness sends data to Azure. The `LAB_DEPENDENCY_TOKEN` used by the HTTP harness is
 a synthetic sentinel; the service checks its presence without returning it.
 
 To inspect the API yourself in PowerShell:

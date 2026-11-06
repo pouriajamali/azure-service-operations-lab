@@ -19,6 +19,8 @@ jobs:
       - run: dotnet run --project tests/Verify -c Release
       - run: dotnet publish src/Api -c Release -o artifacts/api --no-self-contained
       - run: python scripts/http_check.py --dll artifacts/api/Api.dll
+      - shell: pwsh
+        run: ./tests/TrafficChecks.ps1
   package:
     runs-on: ubuntu-latest
     steps:
