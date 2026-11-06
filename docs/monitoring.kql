@@ -1,0 +1,16 @@
+// Inspect actual application records after deployment; no numbers are asserted in advance.
+ContainerAppConsoleLogs_CL
+| where TimeGenerated > ago(30m)
+| extend Record = parse_json(Log_s)
+| where tostring(Record.Message) startswith 'request_completed'
+| extend Status = toint(Record.State.Status), DurationMs = todouble(Record.State.DurationMs),
+         CorrelationId = tostring(Record.State.CorrelationId), Route = tostring(Record.State.Route)
+| summarize Requests=count(), ServerErrors=countif(Status >= 500),
+            p50ms=percentile(DurationMs,50), p95ms=percentile(DurationMs,95) by bin(TimeGenerated,5m), RevisionName_s, Route
+| order by TimeGenerated asc
+
+// Run separately: platform / image-pull / secret / probe events.
+ContainerAppSystemLogs_CL
+| where TimeGenerated > ago(30m)
+| project TimeGenerated, RevisionName_s, Log_s
+| order by TimeGenerated desc

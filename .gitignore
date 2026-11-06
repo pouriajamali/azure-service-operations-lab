@@ -1,0 +1,8 @@
+**/bin/
+**/obj/
+artifacts/
+.azure/
+*.local.json
+*.local.bicepparam
+*.env
+infra/*.json

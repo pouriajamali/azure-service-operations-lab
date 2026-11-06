@@ -1,0 +1,50 @@
+name: Verify operations preview
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  verify:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: dotnet run --project tests/Verify -c Release
+      - run: dotnet publish src/Api -c Release -o artifacts/api --no-self-contained
+      - run: python scripts/http_check.py --dll artifacts/api/Api.dll
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile infrastructure without Azure authentication
+        run: |
+          az bicep build --file infra/foundation.bicep --stdout > /tmp/foundation.json
+          az bicep build --file infra/application.bicep --stdout > /tmp/application.json
+      - name: Build and exercise actual container
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker build -t operations-lab:ci .
+          user=$(docker image inspect operations-lab:ci --format '{{.Config.User}}')
+          test -n "$user" && test "$user" != root && test "$user" != 0
+          cid=$(docker run -d -p 127.0.0.1:5088:8080 -e LAB_DEPENDENCY_TOKEN=SYNTHETIC_CI_SENTINEL operations-lab:ci)
+          trap 'docker rm -f "$cid" >/dev/null' EXIT
+          for i in $(seq 1 40); do
+            if curl -fsS http://127.0.0.1:5088/health/ready >/dev/null; then break; fi
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:5088/health/ready
+          curl -fsS http://127.0.0.1:5088/version | python -c 'import json,sys; assert json.load(sys.stdin)["mode"] == "synthetic-read-only"'
+          status=$(curl -s -o /tmp/timeout.json -w '%{http_code}' 'http://127.0.0.1:5088/api/reference?delayMs=1000')
+          test "$status" = 504
+          curl -fsS http://127.0.0.1:5088/api/reference
+          sleep 1
+          docker logs "$cid" > /tmp/operations-container.log 2>&1
+          ! grep -q SYNTHETIC_CI_SENTINEL /tmp/operations-container.log

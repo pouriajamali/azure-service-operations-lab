@@ -1,0 +1,9 @@
+**/bin
+**/obj
+artifacts
+.git
+.github
+docs
+tests
+infra
+scripts
